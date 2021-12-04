@@ -39,5 +39,46 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    // iビット(instruction[15])が0ならA命令、1ならC命令。
+    // A命令または、C命令かつd1ビット!=1ならばAレジスタの入力のためにinstructionを出力する。
+    Not (in=instruction[15], out=isAinstruction);  // A命令のとき1
+    Not (in=instruction[5], out=d1isnot1);  // d1ビット!=1のとき1
+    And (a=instruction[15], b=d1isnot1, out=instructionFlug);  // C命令かつd1ビット!=1
+    Or (a=isAinstruction, b=instructionFlug, out=ALUoutAwriteFlag);
+    Mux16 (a=ALUout, b=instruction, sel=ALUoutAwriteFlag, out=ALUoutorinstruction);
+    
+    // A命令、またはC命令かつd1ビット=1であればloadA=1
+    And (a=instruction[5], b=instruction[15], out=isCinstructionandd1is1);  // C命令かつd1ビット=1
+    Or (a=isAinstruction, b=isCinstructionandd1is1, out=loadA);  // A命令のとき、またはC命令かつd1ビット=1
+    ARegister (in=ALUoutorinstruction, load=loadA, out=A, out[0..14]=addressM);
+
+    Mux16 (a=A, b=inM, sel=instruction[12], out=AorM);  // sel=C命令におけるaビット  0: Aレジスタの値, 1: Memory[A]
+    
+    // C命令かつ、d2ビットが1であればloadD=1
+    And (a=instruction[4], b=instruction[15], out=loadD);
+    DRegister (in=ALUout, load=loadD, out=D);
+
+    // c1(instruction[11]) 〜 c6(instruction[6]) がALUの各制御ビットに対応
+    ALU (x=D, y=AorM, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outM, out=ALUout, zr=zr, ng=ng);
+
+    // C命令かつ、d3ビットが1であればwriteMが1になる
+    And (a=instruction[3], b=instruction[15], out=writeM);
+
+    // zrとngによってjump判定
+    And (a=ng, b=instruction[2], out=j1);
+    And (a=zr, b=instruction[1], out=j2);
+    Not (in=zr, out=Notzr);
+    Not (in=ng, out=Notng);
+    And (a=Notzr, b=Notng, out=pg);
+    And (a=pg, b=instruction[0], out=j3);
+    Or8Way (in[0]=j1, in[1]=j2, in[2]=j3, in[3..7]=false, out=jump0);
+    // C命令であればジャンプ
+    And (a=jump0, b=instruction[15], out=jump);
+    
+    // A命令、またはC命令かつジャンプしないとき、inc=1
+    Not (in=jump, out=Notjump);
+    And (a=instruction[15], b=Notjump, out=CandNotjump);
+    Or (a=isAinstruction, b=CandNotjump, out=incPC);
+
+    PC (in=A, load=jump, inc=incPC, reset=reset, out[0..14]=pc);
 }
