@@ -39,5 +39,38 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    // iビット(instruction[15])が0ならA命令、1ならC命令。
+    // A命令または、C命令かつd1ビット!=1ならばAレジスタの入力のためにinstructionを出力する。
+    Not (in=instruction[15], out=isAinstruction);  // A命令のとき1
+    Not (in=instruction[5], out=d1isnot1);  // d1ビット!=1のとき1
+    And (a=instruction[15], b=d1isnot1, out=instructionFlug);  // C命令かつd1ビット!=1
+    Or (a=isAinstruction, b=instructionFlug, out=ALUoutAwriteFlag);
+    Mux16 (a=ALUout, b=instruction, sel=ALUoutAwriteFlag, out=ALUoutorinstruction);
+    
+    // Aレジスタで値をloadするのは、A命令のとき、またはC命令かつd1ビット=1のとき
+    And (a=instruction[15], b=instruction[5], out=isCinstructionandd1is1);  // C命令かつd1ビット=1
+    Or (a=isAinstruction, b=isCinstructionandd1is1, out=ARegisterLoadFlag);  // A命令のとき、またはC命令かつd1ビット=1
+    ARegister (in=ALUoutorinstruction, load=ARegisterLoadFlag, out=A, out[0..14]=addressM);
+
+    Mux16 (a=A, b=inM, sel=instruction[12], out=AorM);  // sel=C命令におけるaビット  0: Aレジスタの値, 1: Memory[A]
+    DRegister (in=ALUout, load=instruction[4], out=D);  // load=C命令におけるd2ビット
+
+    // c1(instruction[11]) 〜 c6(instruction[6]) がALUの各制御ビットに対応
+    ALU (x=D, y=AorM, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outM, out=ALUout, zr=zr, ng=ng);
+
+    // C命令かつ、d3ビットが1であればwriteMが1になる
+    Mux (a=false, b=instruction[3], sel=instruction[15], out=writeM);
+
+    // zrとngによってjump判定
+    Mux (a=false, b=ng, sel=instruction[2], out=j1);
+    Mux (a=false, b=zr, sel=instruction[1], out=j2);
+    Not (in=zr, out=Notzr);
+    Not (in=ng, out=Notng);
+    And (a=Notzr, b=Notng, out=pg);
+    Mux (a=false, b=pg, sel=instruction[0], out=j3);
+    Or8Way (in[0]=j1, in[1]=j2, in[2]=j3, in[3..7]=false, out=jump0);
+    // C命令であればジャンプ
+    Mux (a=false, b=jump0, sel=instruction[15], out=jump);
+
+    PC (in=A, load=jump, inc=true, reset=reset, out[0..14]=pc);
 }
