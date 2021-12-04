@@ -59,18 +59,18 @@ CHIP CPU {
     ALU (x=D, y=AorM, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outM, out=ALUout, zr=zr, ng=ng);
 
     // C命令かつ、d3ビットが1であればwriteMが1になる
-    Mux (a=false, b=instruction[3], sel=instruction[15], out=writeM);
+    And (a=instruction[3], b=instruction[15], out=writeM);
 
     // zrとngによってjump判定
-    Mux (a=false, b=ng, sel=instruction[2], out=j1);
-    Mux (a=false, b=zr, sel=instruction[1], out=j2);
+    And (a=ng, b=instruction[2], out=j1);
+    And (a=zr, b=instruction[1], out=j2);
     Not (in=zr, out=Notzr);
     Not (in=ng, out=Notng);
     And (a=Notzr, b=Notng, out=pg);
-    Mux (a=false, b=pg, sel=instruction[0], out=j3);
+    And (a=pg, b=instruction[0], out=j3);
     Or8Way (in[0]=j1, in[1]=j2, in[2]=j3, in[3..7]=false, out=jump0);
     // C命令であればジャンプ
-    Mux (a=false, b=jump0, sel=instruction[15], out=jump);
+    And (a=jump0, b=instruction[15], out=jump);
 
     PC (in=A, load=jump, inc=true, reset=reset, out[0..14]=pc);
 }
